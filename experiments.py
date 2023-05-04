@@ -21,6 +21,7 @@ from model import *
 from utils import *
 from vggmodel import *
 from resnetcifar import *
+from resnet import resnet20
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -30,7 +31,7 @@ def get_args():
     parser.add_argument('--partition', type=str, default='homo', help='the data partitioning strategy')
     parser.add_argument('--batch-size', type=int, default=64, help='input batch size for training (default: 64)')
     parser.add_argument('--lr', type=float, default=0.01, help='learning rate (default: 0.01)')
-    parser.add_argument('--epochs', type=int, default=5, help='number of local epochs')
+    parser.add_argument('--epochs', type=int, default=10, help='number of local epochs')
     parser.add_argument('--n_parties', type=int, default=2,  help='number of workers in a distributed cluster')
     parser.add_argument('--alg', type=str, default='fedavg',
                             help='fl algorithms: fedavg/fedprox/scaffold/fednova/moon')
@@ -55,6 +56,8 @@ def get_args():
     parser.add_argument('--noise_type', type=str, default='level', help='Different level of noise or different space of noise')
     parser.add_argument('--rho', type=float, default=0, help='Parameter controlling the momentum SGD')
     parser.add_argument('--sample', type=float, default=1, help='Sample ratio for each communication round')
+    parser.add_argument('--scheduler', type=str, default='exponentiallr', help='Learning rate scheduler')
+    parser.add_argument('--decay_rate', type=float, default=.99, help='Learning rate scheduler decay rate')
     args = parser.parse_args()
     return args
 
@@ -132,6 +135,8 @@ def init_nets(net_configs, dropout_p, n_parties, args):
                         net = ModerateCNN(output_dim=2)
                 elif args.model == "resnet":
                     net = ResNet50_cifar10()
+                elif args.model == "res20":
+                    net = resnet20(10)
                 elif args.model == "vgg16":
                     net = vgg16()
                 else:
@@ -147,7 +152,7 @@ def init_nets(net_configs, dropout_p, n_parties, args):
     return nets, model_meta_data, layer_type
 
 
-def train_net(net_id, net, train_dataloader, test_dataloader, epochs, lr, args_optimizer, device="cpu"):
+def train_net(net_id, net, train_dataloader, test_dataloader, epochs, lr, args_optimizer, args_scheduler, args_decay_rate, device="cpu"):
     logger.info('Training network %s' % str(net_id))
 
     train_acc = compute_accuracy(net, train_dataloader, device=device)
@@ -164,6 +169,9 @@ def train_net(net_id, net, train_dataloader, test_dataloader, epochs, lr, args_o
     elif args_optimizer == 'sgd':
         optimizer = optim.SGD(filter(lambda p: p.requires_grad, net.parameters()), lr=lr, momentum=args.rho, weight_decay=args.reg)
     criterion = nn.CrossEntropyLoss().to(device)
+
+    if args_scheduler == "exponentiallr":
+        scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=args_decay_rate)
 
     cnt = 0
     if type(train_dataloader) == type([1]):
@@ -192,6 +200,9 @@ def train_net(net_id, net, train_dataloader, test_dataloader, epochs, lr, args_o
 
                 cnt += 1
                 epoch_loss_collector.append(loss.item())
+
+        if args_scheduler:
+            scheduler.step()
 
         epoch_loss = sum(epoch_loss_collector) / len(epoch_loss_collector)
         logger.info('Epoch: %d Loss: %f' % (epoch, epoch_loss))
@@ -222,7 +233,7 @@ def train_net(net_id, net, train_dataloader, test_dataloader, epochs, lr, args_o
 
 
 
-def train_net_fedprox(net_id, net, global_net, train_dataloader, test_dataloader, epochs, lr, args_optimizer, mu, device="cpu"):
+def train_net_fedprox(net_id, net, global_net, train_dataloader, test_dataloader, epochs, lr, args_optimizer, args_scheduler, args_decay_rate, mu, device="cpu"):
     logger.info('Training network %s' % str(net_id))
     logger.info('n_training: %d' % len(train_dataloader))
     logger.info('n_test: %d' % len(test_dataloader))
@@ -243,6 +254,9 @@ def train_net_fedprox(net_id, net, global_net, train_dataloader, test_dataloader
         optimizer = optim.SGD(filter(lambda p: p.requires_grad, net.parameters()), lr=lr, momentum=args.rho, weight_decay=args.reg)
 
     criterion = nn.CrossEntropyLoss().to(device)
+
+    if args_scheduler == "exponentiallr":
+        scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=args_decay_rate)
 
     cnt = 0
     # mu = 0.001
@@ -273,6 +287,9 @@ def train_net_fedprox(net_id, net, global_net, train_dataloader, test_dataloader
 
             cnt += 1
             epoch_loss_collector.append(loss.item())
+        
+        if args_scheduler:
+            scheduler.step()
 
         epoch_loss = sum(epoch_loss_collector) / len(epoch_loss_collector)
         logger.info('Epoch: %d Loss: %f' % (epoch, epoch_loss))
@@ -294,7 +311,7 @@ def train_net_fedprox(net_id, net, global_net, train_dataloader, test_dataloader
     logger.info(' ** Training complete **')
     return train_acc, test_acc
 
-def train_net_scaffold(net_id, net, global_model, c_local, c_global, train_dataloader, test_dataloader, epochs, lr, args_optimizer, device="cpu"):
+def train_net_scaffold(net_id, net, global_model, c_local, c_global, train_dataloader, test_dataloader, epochs, lr, args_optimizer, args_scheduler, args_decay_rate, device="cpu"):
     logger.info('Training network %s' % str(net_id))
 
     train_acc = compute_accuracy(net, train_dataloader, device=device)
@@ -311,6 +328,9 @@ def train_net_scaffold(net_id, net, global_model, c_local, c_global, train_datal
     elif args_optimizer == 'sgd':
         optimizer = optim.SGD(filter(lambda p: p.requires_grad, net.parameters()), lr=lr, momentum=args.rho, weight_decay=args.reg)
     criterion = nn.CrossEntropyLoss().to(device)
+
+    if args_scheduler == "exponentiallr":
+        scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=args_decay_rate)
 
     cnt = 0
     if type(train_dataloader) == type([1]):
@@ -348,6 +368,8 @@ def train_net_scaffold(net_id, net, global_model, c_local, c_global, train_datal
                 cnt += 1
                 epoch_loss_collector.append(loss.item())
 
+        if args_scheduler:
+            scheduler.step()
 
         epoch_loss = sum(epoch_loss_collector) / len(epoch_loss_collector)
         logger.info('Epoch: %d Loss: %f' % (epoch, epoch_loss))
@@ -372,7 +394,7 @@ def train_net_scaffold(net_id, net, global_model, c_local, c_global, train_datal
     logger.info(' ** Training complete **')
     return train_acc, test_acc, c_delta_para
 
-def train_net_fednova(net_id, net, global_model, train_dataloader, test_dataloader, epochs, lr, args_optimizer, device="cpu"):
+def train_net_fednova(net_id, net, global_model, train_dataloader, test_dataloader, epochs, lr, args_optimizer, args_scheduler, args_decay_rate, device="cpu"):
     logger.info('Training network %s' % str(net_id))
 
     train_acc = compute_accuracy(net, train_dataloader, device=device)
@@ -383,6 +405,9 @@ def train_net_fednova(net_id, net, global_model, train_dataloader, test_dataload
 
     optimizer = optim.SGD(filter(lambda p: p.requires_grad, net.parameters()), lr=lr, momentum=args.rho, weight_decay=args.reg)
     criterion = nn.CrossEntropyLoss().to(device)
+
+    if args_scheduler == "exponentiallr":
+        scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=args_decay_rate)
 
     if type(train_dataloader) == type([1]):
         pass
@@ -415,7 +440,9 @@ def train_net_fednova(net_id, net, global_model, train_dataloader, test_dataload
 
                 epoch_loss_collector.append(loss.item())
 
-
+        if args_scheduler:
+            scheduler.step()
+        
         epoch_loss = sum(epoch_loss_collector) / len(epoch_loss_collector)
         logger.info('Epoch: %d Loss: %f' % (epoch, epoch_loss))
 
@@ -579,7 +606,7 @@ def local_train_net(nets, selected, args, net_dataidx_map, test_dl = None, devic
         n_epoch = args.epochs
 
 
-        trainacc, testacc = train_net(net_id, net, train_dl_local, test_dl, n_epoch, args.lr, args.optimizer, device=device)
+        trainacc, testacc = train_net(net_id, net, train_dl_local, test_dl, n_epoch, args.lr, args.optimizer, args.scheduler, args.decay_rate, device=device)
         logger.info("net %d final test acc %f" % (net_id, testacc))
         avg_acc += testacc
         # saving the trained models here
@@ -618,7 +645,7 @@ def local_train_net_fedprox(nets, selected, global_model, args, net_dataidx_map,
         train_dl_global, test_dl_global, _, _ = get_dataloader(args.dataset, args.datadir, args.batch_size, 32)
         n_epoch = args.epochs
 
-        trainacc, testacc = train_net_fedprox(net_id, net, global_model, train_dl_local, test_dl, n_epoch, args.lr, args.optimizer, args.mu, device=device)
+        trainacc, testacc = train_net_fedprox(net_id, net, global_model, train_dl_local, test_dl, n_epoch, args.lr, args.optimizer, args.scheduler, args.decay_rate, args.mu, device=device)
         logger.info("net %d final test acc %f" % (net_id, testacc))
         avg_acc += testacc
     avg_acc /= len(selected)
@@ -660,7 +687,7 @@ def local_train_net_scaffold(nets, selected, global_model, c_nets, c_global, arg
         n_epoch = args.epochs
 
 
-        trainacc, testacc, c_delta_para = train_net_scaffold(net_id, net, global_model, c_nets[net_id], c_global, train_dl_local, test_dl, n_epoch, args.lr, args.optimizer, device=device)
+        trainacc, testacc, c_delta_para = train_net_scaffold(net_id, net, global_model, c_nets[net_id], c_global, train_dl_local, test_dl, n_epoch, args.lr, args.optimizer, args.scheduler, args.decay_rate, device=device)
 
         c_nets[net_id].to('cpu')
         for key in total_delta:
@@ -718,7 +745,7 @@ def local_train_net_fednova(nets, selected, global_model, args, net_dataidx_map,
         n_epoch = args.epochs
 
 
-        trainacc, testacc, a_i, d_i = train_net_fednova(net_id, net, global_model, train_dl_local, test_dl, n_epoch, args.lr, args.optimizer, device=device)
+        trainacc, testacc, a_i, d_i = train_net_fednova(net_id, net, global_model, train_dl_local, test_dl, n_epoch, args.lr, args.optimizer, args.scheduler, args.decay_rate, device=device)
 
         a_list.append(a_i)
         d_list.append(d_i)
@@ -788,6 +815,13 @@ def get_partition_dict(dataset, partition, n_parties, init_seed=0, datadir='./da
 if __name__ == '__main__':
     # torch.set_printoptions(profile="full")
     args = get_args()
+
+    NOW = str(datetime.datetime.now()).replace(" ","--")
+    log_file_name = 'experiment_log-%s' % (datetime.datetime.now().strftime("%Y-%m-%d-%H:%M-%S"))
+    log_dir = './logs/{}_dataset[{}]_model[{}]_partition[{}]_algo[{}]_clients[{}]_rounds[{}]_frac[{}]_lr[{}]_scheduler[{}]_decay_rate[{}]_local_bs[{}]_beta[{}]_noise[{}]/'. \
+        format(NOW,args.dataset, args.model, args.partition, args.alg, args.n_parties, args.comm_round, args.sample, args.lr, args.scheduler, args.decay_rate, args.batch_size, args.beta, args.noise)
+    args.logdir = log_dir
+
     mkdirs(args.logdir)
     mkdirs(args.modeldir)
     if args.log_file_name is None:
@@ -796,6 +830,8 @@ if __name__ == '__main__':
         argument_path=args.log_file_name+'.json'
     with open(os.path.join(args.logdir, argument_path), 'w') as f:
         json.dump(str(args), f)
+    
+    args.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     device = torch.device(args.device)
     # logging.basicConfig(filename='test.log', level=logger.info, filemode='w')
     # logging.info("test")
@@ -874,11 +910,13 @@ if __name__ == '__main__':
                 net.load_state_dict(global_para)
 
         for round in range(args.comm_round):
-            logger.info("in comm round:" + str(round))
+            logger.info('*******starting rounds %s optimization******' % str(round+1))
 
             arr = np.arange(args.n_parties)
             np.random.shuffle(arr)
             selected = arr[:int(args.n_parties * args.sample)]
+
+            logger.info('SELECTED %d: %s' % (len(selected), str(selected)))
 
             global_para = global_model.state_dict()
             if round == 0:
@@ -931,11 +969,13 @@ if __name__ == '__main__':
                 net.load_state_dict(global_para)
 
         for round in range(args.comm_round):
-            logger.info("in comm round:" + str(round))
+            logger.info('*******starting rounds %s optimization******' % str(round+1))
 
             arr = np.arange(args.n_parties)
             np.random.shuffle(arr)
             selected = arr[:int(args.n_parties * args.sample)]
+
+            logger.info('SELECTED %d: %s' % (len(selected), str(selected)))
 
             global_para = global_model.state_dict()
             if round == 0:
@@ -996,11 +1036,13 @@ if __name__ == '__main__':
 
 
         for round in range(args.comm_round):
-            logger.info("in comm round:" + str(round))
+            logger.info('*******starting rounds %s optimization******' % str(round+1))
 
             arr = np.arange(args.n_parties)
             np.random.shuffle(arr)
             selected = arr[:int(args.n_parties * args.sample)]
+
+            logger.info('SELECTED %d: %s' % (len(selected), str(selected)))
 
             global_para = global_model.state_dict()
             if round == 0:
@@ -1066,11 +1108,13 @@ if __name__ == '__main__':
                 net.load_state_dict(global_para)
 
         for round in range(args.comm_round):
-            logger.info("in comm round:" + str(round))
+            logger.info('*******starting rounds %s optimization******' % str(round+1))
 
             arr = np.arange(args.n_parties)
             np.random.shuffle(arr)
             selected = arr[:int(args.n_parties * args.sample)]
+
+            logger.info('SELECTED %d: %s' % (len(selected), str(selected)))
 
             global_para = global_model.state_dict()
             if round == 0:
@@ -1151,11 +1195,13 @@ if __name__ == '__main__':
                 param.requires_grad = False
 
         for round in range(args.comm_round):
-            logger.info("in comm round:" + str(round))
+            logger.info('*******starting rounds %s optimization******' % str(round+1))
 
             arr = np.arange(args.n_parties)
             np.random.shuffle(arr)
             selected = arr[:int(args.n_parties * args.sample)]
+
+            logger.info('SELECTED %d: %s' % (len(selected), str(selected)))
 
             global_para = global_model.state_dict()
             if round == 0:
@@ -1215,7 +1261,7 @@ if __name__ == '__main__':
         nets, local_model_meta_data, layer_type = init_nets(args.net_config, args.dropout_p, 1, args)
         n_epoch = args.epochs
         nets[0].to(device)
-        trainacc, testacc = train_net(0, nets[0], train_dl_global, test_dl_global, n_epoch, args.lr, args.optimizer, device=device)
+        trainacc, testacc = train_net(0, nets[0], train_dl_global, test_dl_global, n_epoch, args.lr, args.optimizer, args.scheduler, args.decay_rate, device=device)
 
         logger.info("All in test acc: %f" % testacc)
 
