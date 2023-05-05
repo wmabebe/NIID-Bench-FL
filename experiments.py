@@ -22,6 +22,7 @@ from utils import *
 from vggmodel import *
 from resnetcifar import *
 from resnet import resnet20
+from ffnn import NeuralNet
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -118,6 +119,9 @@ def init_nets(net_configs, dropout_p, n_parties, args):
                     net = FcNet(input_size, hidden_sizes, output_size, dropout_p)
                 elif args.model == "vgg":
                     net = vgg11()
+                elif args.model == "ffnn":
+                    input_size, hidden_size = 784, 10
+                    net = NeuralNet(input_size, hidden_size, n_classes)
                 elif args.model == "simple-cnn":
                     if args.dataset in ("cifar10", "cinic10", "svhn"):
                         net = SimpleCNN(input_dim=(16 * 5 * 5), hidden_dims=[120, 84], output_dim=10)
@@ -136,7 +140,7 @@ def init_nets(net_configs, dropout_p, n_parties, args):
                 elif args.model == "resnet":
                     net = ResNet50_cifar10()
                 elif args.model == "res20":
-                    net = resnet20(10)
+                    net = resnet20(n_classes)
                 elif args.model == "vgg16":
                     net = vgg16()
                 else:
