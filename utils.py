@@ -327,6 +327,8 @@ def partition_data(dataset, datadir, logdir, partition, n_parties, beta=0.4,spli
             K = 100
         elif dataset == 'tinyimagenet':
             K = 200
+        elif dataset == 'femnist':
+            K = 62
 
         N = y_train.shape[0]
         #np.random.seed(2020)
@@ -370,6 +372,8 @@ def partition_data(dataset, datadir, logdir, partition, n_parties, beta=0.4,spli
             K = 100
         elif dataset == "tinyimagenet":
             K = 200
+        elif dataset == "femnist":
+            K = 62
         if num == 10:
             net_dataidx_map ={i:np.ndarray(0,dtype=np.int64) for i in range(n_parties)}
             for i in range(10):
