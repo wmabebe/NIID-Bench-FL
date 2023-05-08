@@ -909,7 +909,7 @@ def get_client_dataloader(dataset, datadir, train_bs, test_bs, dataidxs=None, no
 
     global_test_dl = data.DataLoader(dataset=test_ds, batch_size=test_bs, shuffle=False, drop_last=True)
 
-    for key, dataid in dataidxs.items():
+    for key, dataid in sorted(dataidxs.items()):
         
 
         
@@ -925,7 +925,7 @@ def get_client_dataloader(dataset, datadir, train_bs, test_bs, dataidxs=None, no
         else:
             train_dl = data.DataLoader(dataset=torch.utils.data.Subset(train_ds, dataid), batch_size=train_bs, shuffle=True, drop_last=True)   
             #print("Client ID:",key+1, ",\tLocal Train Data Size:",len(train_dl.dataset),len(dataid))  
-            logger.info(f"Client ID:{key+1},\tLocal Train Data Size:{len(train_ds)}")
+            logger.info(f"Client ID:{key+1},\tLocal Train Data Size:{len(train_dl.dataset)}")
         train_loaders.append(train_dl)
 
     
