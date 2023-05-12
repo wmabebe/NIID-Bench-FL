@@ -795,7 +795,7 @@ def get_dataloader(dataset, datadir, train_bs, test_bs, dataidxs=None, noise_lev
             test_dl = data.DataLoader(dataset=test_ds, batch_size=test_bs, shuffle=False, drop_last=True)
             return train_dl, test_dl, train_ds, test_ds
 
-        elif dataset == "tinyimagenet":
+        if dataset == "tinyimagenet":
             train_ds = dl_obj(datadir+'./train/', dataidxs=dataidxs, transform=transform_train)
             test_ds = dl_obj(datadir+'./val/', transform=transform_test)
         else:

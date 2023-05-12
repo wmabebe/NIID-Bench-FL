@@ -4,6 +4,7 @@ import torch
 import torch.optim as optim
 import torch.nn as nn
 import torchvision
+from efficientnet_pytorch import EfficientNet
 import torchvision.transforms as transforms
 from torch.autograd import Variable
 import torch.utils.data as data
@@ -147,6 +148,10 @@ def init_nets(net_configs, dropout_p, n_parties, args):
                     net = ResNet50_cifar10()
                 elif args.model == "res20":
                     net = resnet20(n_classes)
+                elif args.model == "mobilenetv3":
+                    net = torchvision.models.mobilenet_v3_small(pretrained=False, num_classes=n_classes)
+                elif args.model == "efficientnet":
+                    net = EfficientNet.from_name('efficientnet-b0', num_classes=n_classes)
                 elif args.model == "vgg16":
                     net = vgg16()
                 else:
@@ -903,7 +908,7 @@ if __name__ == '__main__':
                                                                                         args.datadir,
                                                                                         args.batch_size,
                                                                                         32,
-                                                                                        args.split)
+                                                                                        split=args.split)
 
     print("train_dl_global:", len(train_dl_global.dataset),type(train_dl_global.dataset))
     print("test_dl_global:", len(test_dl_global.dataset),type(test_dl_global.dataset))
