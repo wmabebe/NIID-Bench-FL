@@ -152,8 +152,10 @@ def init_nets(net_configs, dropout_p, n_parties, args):
                     net = torchvision.models.mobilenet_v3_small(pretrained=False, num_classes=n_classes)
                 elif args.model == "efficientnet":
                     net = EfficientNet.from_name('efficientnet-b0', num_classes=n_classes)
+                elif args.model == "vgg11":
+                    net = vgg11(n_classes)
                 elif args.model == "vgg16":
-                    net = vgg16()
+                    net = vgg16(n_classes)
                 else:
                     print("not supported yet")
                     exit(1)
