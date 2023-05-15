@@ -149,7 +149,13 @@ def init_nets(net_configs, dropout_p, n_parties, args):
                 elif args.model == "res20":
                     net = resnet20(n_classes)
                 elif args.model == "mobilenetv3":
-                    net = torchvision.models.mobilenet_v3_small(pretrained=False, num_classes=n_classes)
+                    if args.dataset in ["femnist"]:
+                        net = torchvision.models.mobilenet_v3_small(weights=None)
+                        # Modify the classifier for EMNIST classification
+                        in_features = net.classifier[-1].in_features
+                        net.classifier[-1] = nn.Linear(in_features, n_classes)
+                    elif args.dataset in ["cifar10", "cifar100"]:
+                        net = torchvision.models.mobilenet_v3_small(pretrained=False, num_classes=n_classes)
                 elif args.model == "efficientnet":
                     net = EfficientNet.from_name('efficientnet-b0', num_classes=n_classes)
                 elif args.model == "vgg11":

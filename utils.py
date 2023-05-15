@@ -787,7 +787,13 @@ def get_dataloader(dataset, datadir, train_bs, test_bs, dataidxs=None, noise_lev
 
         if dataset == "femnist":
             transform = transforms.Compose([transforms.ToTensor()])
-
+            # Load and preprocess the EMNIST dataset
+            transform = transforms.Compose([
+                transforms.Resize((224, 224)),
+                transforms.Grayscale(num_output_channels=3),  # Convert grayscale to 3 channels
+                transforms.ToTensor(),
+                transforms.Normalize((0.5,), (0.5,))
+            ])
             train_ds = datasets.EMNIST(root='./data', split=split, train=True, transform=transform, download=True)
             test_ds = datasets.EMNIST(root='./data', split=split, train=False, transform=transform, download=True)
             train_dl = data.DataLoader(dataset=train_ds, batch_size=train_bs, shuffle=True, drop_last=True)     
@@ -898,6 +904,13 @@ def get_client_dataloader(dataset, datadir, train_bs, test_bs, dataidxs=None, no
 
     if dataset == "femnist":
         transform = transforms.Compose([transforms.ToTensor()])
+        # Load and preprocess the EMNIST dataset
+        transform = transforms.Compose([
+            transforms.Resize((224, 224)),
+            transforms.Grayscale(num_output_channels=3),  # Convert grayscale to 3 channels
+            transforms.ToTensor(),
+            transforms.Normalize((0.5,), (0.5,))
+        ])
         train_ds = datasets.EMNIST(root='./data', split=split, train=True, transform=transform, download=True)
         test_ds = datasets.EMNIST(root='./data', split=split, train=False, transform=transform, download=True)
         train_dl = data.DataLoader(dataset=train_ds, batch_size=train_bs, shuffle=True, drop_last=True)     
