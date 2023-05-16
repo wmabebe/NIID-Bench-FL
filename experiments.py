@@ -24,6 +24,7 @@ from vggmodel import *
 from resnetcifar import *
 from resnet import resnet20
 from ffnn import NeuralNet
+from mobilenet_v3 import MobileNetV3
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -143,7 +144,8 @@ def init_nets(net_configs, dropout_p, n_parties, args):
                 elif args.model == "res20":
                     net = resnet20(n_classes)
                 elif args.model == "mobilenetv3":
-                    net = torchvision.models.mobilenet_v3_small(weights=None, num_classes=n_classes)
+                    #net = torchvision.models.mobilenet_v3_small(weights=None, num_classes=n_classes)
+                    net = MobileNetV3('small',n_classes)
                 elif args.model == "efficientnet":
                     net = EfficientNet.from_name('efficientnet-b0', num_classes=n_classes)
                 elif args.model == "vgg11":
